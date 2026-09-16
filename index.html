@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Card Battle</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    /* ===== ОБЩИЕ СТИЛИ ===== */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: white;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    .screen { display: none; padding: 16px; min-height: 100vh; }
+    .screen.active { display: flex; flex-direction: column; }
+    h1 { text-align: center; font-size: 24px; margin: 16px 0; }
+    h2 { text-align: center; font-size: 18px; margin: 12px 0; color: #aaa; }
+
+    /* ===== КНОПКИ ===== */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 12px;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      color: white;
+    }
+    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); }
+    .btn-success { background: linear-gradient(135deg, #11998e, #38ef7d); }
+    .btn-danger { background: linear-gradient(135deg, #eb3349, #f45c43); }
+    .btn-gold { background: linear-gradient(135deg, #f7971e, #ffd200); color: #333; }
+    .btn:active { transform: scale(0.97); opacity: 0.9; }
+
+    /* ===== КАРТЫ ===== */
+    .cards-row {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 12px 0;
+    }
+    .card {
+      width: 100px;
+      height: 140px;
+      border-radius: 10px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      position: relative;
+      border: 2px solid rgba(255,255,255,0.2);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:active { transform: scale(0.95); }
+    .card.selected {
+      border-color: #38ef7d;
+      box-shadow: 0 0 15px rgba(56, 239, 125, 0.5);
+      transform: translateY(-5px);
+    }
+    .card-emoji { font-size: 32px; }
+    .card-name { font-weight: bold; text-align: center; font-size: 11px; }
+    .card-stats { display: flex; gap: 8px; font-size: 11px; }
+    .card-ability {
+      font-size: 9px;
+      background: rgba(0,0,0,0.4);
+      padding: 2px 6px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .stat-atk { color: #ff6b6b; }
+    .stat-def { color: #51cf66; }
+
+    /* Цвета карт по редкости */
+    .rarity-common { background: linear-gradient(180deg, #4a4a6a, #2a2a4a); }
+    .rarity-rare { background: linear-gradient(180deg, #2a4a8a, #1a2a5a); }
+    .rarity-epic { background: linear-gradient(180deg, #6a2a8a, #3a1a5a); }
+    .rarity-legendary { background: linear-gradient(180deg, #8a6a1a, #5a3a0a); border-color: gold; }
+
+    /* ===== БОЙ ===== */
+    .fight-arena {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 16px 0;
+      padding: 16px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+    }
+    .fight-card {
+      text-align: center;
+      padding: 12px;
+      border-radius: 12px;
+      min-width: 100px;
+    }
+    .fight-vs { font-size: 28px; font-weight: bold; color: #f45c43; }
+    .hp-bar {
+      width: 100%;
+      height: 8px;
+      background: #333;
+      border-radius: 4px;
+      margin-top: 6px;
+      overflow: hidden;
+    }
+    .hp-fill {
+      height: 100%;
+      background: #51cf66;
+      border-radius: 4px;
+      transition: width 0.5s;
+    }
+    .hp-fill.low { background: #ff6b6b; }
+
+    .fight-log {
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      padding: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 8px 0;
+    }
+    .log-damage { color: #ff6b6b; }
+    .log-heal { color: #51cf66; }
+    .log-ability { color: #ffd43b; }
+    .log-win { color: #38ef7d; font-weight: bold; }
+    .log-lose { color: #ff6b6b; font-weight: bold; }
+
+    .score-display {
+      text-align: center;
+      font-size: 36px;
+      font-weight: bold;
+      margin: 8px 0;
+    }
+
+    /* ===== ПАК ===== */
+    .pack-box {
+      width: 150px;
+      height: 200px;
+      margin: 30px auto;
+      background: linear-gradient(135deg, #667eea, #764ba2, #f7971e);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 60px;
+      cursor: pointer;
+      animation: packPulse 2s infinite;
+      border: 3px solid rgba(255,255,255,0.3);
+    }
+    @keyframes packPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .pack-box:active { animation: none; transform: scale(0.95); }
+
+    .reveal-cards {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin: 20px 0;
+    }
+    .reveal-card {
+      animation: cardReveal 0.5s ease-out;
+    }
+    @keyframes cardReveal {
+      from { transform: rotateY(90deg) scale(0.5); opacity: 0; }
+      to { transform: rotateY(0) scale(1); opacity: 1; }
+    }
+
+    .collection-count {
+      text-align: center;
+      color: #aaa;
+      font-size: 14px;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ===== ЭКРАН: ГЛАВНОЕ МЕНЮ ===== -->
+  <div id="screen-menu" class="screen active">
+    <h1>⚔️ Card Battle</h1>
+    <h2>Коллекционная карточная игра</h2>
+    <div style="flex:1"></div>
+    <button class="btn btn-gold" onclick="openPack()">🎁 Открыть пак</button>
+    <button class="btn btn-primary" onclick="showCollection()">📚 Моя коллекция</button>
+    <button class="btn btn-danger" onclick="showDeckSelect()">⚔️ В бой!</button>
+    <div style="height: 20px"></div>
+  </div>
+
+  <!-- ===== ЭКРАН: ОТКРЫТИЕ ПАКА ===== -->
+  <div id="screen-pack" class="screen">
+    <h1>🎁 Открытие пака</h1>
+    <div id="pack-unopened">
+      <p style="text-align:center; color:#aaa; margin:16px 0;">Нажми на пак чтобы открыть!</p>
+      <div class="pack-box" onclick="revealPack()">🃏</div>
+    </div>
+    <div id="pack-opened" style="display:none;">
+      <p style="text-align:center; color:#38ef7d; font-size:18px; margin:12px 0;">Ты получил:</p>
+      <div id="pack-cards" class="reveal-cards"></div>
+      <button class="btn btn-success" onclick="goMenu()" style="margin-top:16px;">✅ Забрать и в меню</button>
+    </div>
+  </div>
+
+  <!-- ===== ЭКРАН: КОЛЛЕКЦИЯ ===== -->
+  <div id="screen-collection" class="screen">
+    <h1>📚 Коллекция</h1>
+    <p id="coll-count" class="collection-count"></p>
+    <div id="coll-cards" class="cards-row"></div>
+    <div style="flex:1"></div>
+    <button class="btn btn-primary" onclick="goMenu()">← Назад</button>
+  </div>
+
+  <!-- ===== ЭКРАН: ВЫБОР КОЛОДЫ ===== -->
+  <div id="screen-deck" class="screen">
+    <h1>⚔️ Выбери 3 карты</h1>
+    <p id="deck-hint" style="text-align:center; color:#aaa;">Выбрано: 0 / 3</p>
+    <div id="deck-cards" class="cards-row"></div>
+    <div style="flex:1"></div>
+    <button id="btn-fight" class="btn btn-danger" onclick="startFight()" style="display:none;">
+      ⚔️ НАЧАТЬ БОЙ!
+    </button>
+    <button class="btn btn-primary" onclick="goMenu()">← Назад</button>
+  </div>
+
+  <!-- ===== ЭКРАН: БОЙ ===== -->
+  <div id="screen-fight" class="screen">
+    <h1 id="fight-title">⚔️ Бой</h1>
+    <div id="fight-score" class="score-display">0 : 0</div>
+    <div id="fight-arena" class="fight-arena"></div>
+    <div id="fight-log" class="fight-log"></div>
+    <div style="flex:1"></div>
+    <button id="btn-next-round" class="btn btn-gold" onclick="nextRound()" style="display:none;">
+      Следующий раунд →
+    </button>
+    <button id="btn-fight-end" class="btn btn-success" onclick="goMenu()" style="display:none;">
+      🏠 В меню
+    </button>
+  </div>
+
+<script>
+// =============================================
+//  ДАННЫЕ КАРТ (все персонажи игры)
+// =============================================
+const ALL_CARDS = [
+  {
+    id: "mario",
+    name: "Марио",
+    emoji: "🍄",
+    atk: 6, def: 5,
+    ability: "рывок",
+    abilityDesc: "⚡ Рывок: бьёт первым, убил — враг не отвечает",
+    rarity: "rare",
+    lore: "Прыгает на голову врагу сверху"
+  },
+  {
+    id: "geralt",
+    name: "Геральт",
+    emoji: "🐺",
+    atk: 5, def: 7,
+    ability: "блок",
+    abilityDesc: "🛡 Блок: первый удар по нему — 0 урона",
+    rarity: "epic",
+    lore: "Знак Квен поглощает первый удар"
+  },
+  {
+    id: "creeper",
+    name: "Крипер",
+    emoji: "💚",
+    atk: 3, def: 4,
+    ability: "взрыв",
+    abilityDesc: "💀 Взрыв: при смерти наносит 4 урона убийце",
+    rarity: "common",
+    lore: "Взрывается, уничтожая всё вокруг"
+  },
+  {
+    id: "dovahkiin",
+    name: "Довакин",
+    emoji: "🐉",
+    atk: 7, def: 6,
+    ability: "заморозка",
+    abilityDesc: "❄️ Заморозка: враг пропускает первый тик",
+    rarity: "epic",
+    lore: "Крик «Ледяная форма» замораживает врагов"
+  },
+  {
+    id: "pacman",
+    name: "Пак-Мэн",
+    emoji: "🟡",
+    atk: 4, def: 8,
+    ability: "добивание",
+    abilityDesc: "🎯 Добивание: мгновенно убивает если у врага DEF ≤ 3",
+    rarity: "rare",
+    lore: "Съедает уязвимых призраков"
+  }
+];
+
+// =============================================
+//  СОСТОЯНИЕ ИГРЫ
+// =============================================
+let collection = [];   // карты игрока
+let selectedDeck = []; // 3 выбранные карты на бой
+let enemyDeck = [];    // 3 карты противника
+let fightScore = { player: 0, enemy: 0 };
+let currentRound = 0;
+
+// Загрузка коллекции из памяти браузера
+function loadCollection() {
+  const saved = localStorage.getItem("card_collection");
+  if (saved) {
+    collection = JSON.parse(saved);
+  } else {
+    // Стартовая коллекция: по 1 копии каждой карты
+    collection = ALL_CARDS.map(c => ({...c}));
+    saveCollection();
+  }
+}
+
+function saveCollection() {
+  localStorage.setItem("card_collection", JSON.stringify(collection));
+}
+
+// =============================================
+//  НАВИГАЦИЯ ПО ЭКРАНАМ
+// =============================================
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.getElementById("screen-" + id).classList.add("active");
+}
+
+function goMenu() { showScreen("menu"); }
+
+// =============================================
+//  ОТКРЫТИЕ ПАКА
+// =============================================
+function openPack() {
+  showScreen("pack");
+  document.getElementById("pack-unopened").style.display = "block";
+  document.getElementById("pack-opened").style.display = "none";
+}
+
+function revealPack() {
+  // Генерируем 3 случайные карты
+  const newCards = [];
+  for (let i = 0; i < 3; i++) {
+    const randomCard = ALL_CARDS[Math.floor(Math.random() * ALL_CARDS.length)];
+    newCards.push({...randomCard});
+  }
+
+  // Добавляем в коллекцию
+  newCards.forEach(c => collection.push(c));
+  saveCollection();
+
+  // Показываем карты
+  document.getElementById("pack-unopened").style.display = "none";
+  document.getElementById("pack-opened").style.display = "block";
+
+  const container = document.getElementById("pack-cards");
+  container.innerHTML = "";
+  newCards.forEach((card, i) => {
+    const div = document.createElement("div");
+    div.className = "card rarity-" + card.rarity + " reveal-card";
+    div.style.animationDelay = (i * 0.3) + "s";
+    div.innerHTML = `
+      <div class="card-emoji">${card.emoji}</div>
+      <div class="card-name">${card.name}</div>
+      <div class="card-stats">
+        <span class="stat-atk">⚔${card.atk}</span>
+        <span class="stat-def">🛡${card.def}</span>
+      </div>
+      <div class="card-ability">${card.abilityDesc.split(":")[0]}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// =============================================
+//  КОЛЛЕКЦИЯ
+// =============================================
+function showCollection() {
+  showScreen("collection");
+  document.getElementById("coll-count").textContent =
+    `Всего карт: ${collection.length}`;
+
+  const container = document.getElementById("coll-cards");
+  container.innerHTML = "";
+  collection.forEach(card => {
+    const div = document.createElement("div");
+    div.className = "card rarity-" + card.rarity;
+    div.innerHTML = `
+      <div class="card-emoji">${card.emoji}</div>
+      <div class="card-name">${card.name}</div>
+      <div class="card-stats">
+        <span class="stat-atk">⚔${card.atk}</span>
+        <span class="stat-def">🛡${card.def}</span>
+      </div>
+      <div class="card-ability">${card.abilityDesc.split(":")[0]}</div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// =============================================
+//  ВЫБОР КОЛОДЫ (3 карты)
+// =============================================
+function showDeckSelect() {
+  if (collection.length < 3) {
+    alert("Нужно минимум 3 карты! Открой паки.");
+    return;
+  }
+  showScreen("deck");
+  selectedDeck = [];
+  updateDeckHint();
+
+  const container = document.getElementById("deck-cards");
+  container.innerHTML = "";
+  collection.forEach((card, i) => {
+    const div = document.createElement("div");
+    div.className = "card rarity-" + card.rarity;
+    div.dataset.index = i;
+    div.innerHTML = `
+      <div class="card-emoji">${card.emoji}</div>
+      <div class="card-name">${card.name}</div>
+      <div class="card-stats">
+        <span class="stat-atk">⚔${card.atk}</span>
+        <span class="stat-def">🛡${card.def}</span>
+      </div>
+      <div class="card-ability">${card.abilityDesc.split(":")[0]}</div>
+    `;
+    div.onclick = () => toggleCard(div, i);
+    container.appendChild(div);
+  });
+
+  document.getElementById("btn-fight").style.display = "none";
+}
+
+function toggleCard(div, index) {
+  if (div.classList.contains("selected")) {
+    div.classList.remove("selected");
+    selectedDeck = selectedDeck.filter(c => c !== index);
+  } else {
+    if (selectedDeck.length >= 3) return;
+    div.classList.add("selected");
+    selectedDeck.push(index);
+  }
+  updateDeckHint();
+}
+
+function updateDeckHint() {
+  document.getElementById("deck-hint").textContent =
+    `Выбрано: ${selectedDeck.length} / 3`;
+  document.getElementById("btn-fight").style.display =
+    selectedDeck.length === 3 ? "block" : "none";
+}
+
+// =============================================
+//  ДВИЖОК БОЯ
+// =============================================
+function startFight() {
+  showScreen("fight");
+  fightScore = { player: 0, enemy: 0 };
+  currentRound = 0;
+
+  // Враг случайно берёт 3 карты из всех доступных
+  const shuffled = [...ALL_CARDS].sort(() => Math.random() - 0.5);
+  enemyDeck = shuffled.slice(0, 3).map(c => ({...c}));
+
+  document.getElementById("fight-log").innerHTML =
+    '<span style="color:#aaa">⚔️ Бой начинается! Приготовься...</span>';
+  document.getElementById("btn-fight-end").style.display = "none";
+
+  updateScore();
+  setTimeout(() => nextRound(), 1000);
+}
+
+function updateScore() {
+  document.getElementById("fight-score").textContent =
+    `${fightScore.player} : ${fightScore.enemy}`;
+  document.getElementById("fight-title").textContent =
+    `⚔️ Раунд ${currentRound + 1} из 3`;
+}
+
+function nextRound() {
+  if (currentRound >= 3 || fightScore.player >= 2 || fightScore.enemy >= 2) {
+    endFight();
+    return;
+  }
+
+  document.getElementById("btn-next-round").style.display = "none";
+
+  const pCard = {...collection[selectedDeck[currentRound]]};
+  const eCard = {...enemyDeck[currentRound]};
+
+  // Показываем арены
+  const arena = document.getElementById("fight-arena");
+  arena.innerHTML = `
+    <div class="fight-card">
+      <div style="font-size:36px">${pCard.emoji}</div>
+      <div style="font-weight:bold">${pCard.name}</div>
+      <div class="stat-atk">⚔${pCard.atk}</div>
+      <div class="stat-def">🛡<span id="p-hp">${pCard.def}</span>/${pCard.def}</div>
+      <div class="hp-bar"><div id="p-hp-bar" class="hp-fill" style="width:100%"></div></div>
+    </div>
+    <div class="fight-vs">VS</div>
+    <div class="fight-card">
+      <div style="font-size:36px">${eCard.emoji}</div>
+      <div style="font-weight:bold">${eCard.name}</div>
+      <div class="stat-atk">⚔${eCard.atk}</div>
+      <div class="stat-def">🛡<span id="e-hp">${eCard.def}</span>/${eCard.def}</div>
+      <div class="hp-bar"><div id="e-hp-bar" class="hp-fill" style="width:100%"></div></div>
+    </div>
+  `;
+
+  // Запускаем бой с задержкой для анимации
+  const log = document.getElementById("fight-log");
+  log.innerHTML = `<b>— Раунд ${currentRound + 1} —</b><br>`;
+  log.innerHTML += `${pCard.emoji} ${pCard.name} vs ${eCard.emoji} ${eCard.name}<br><br>`;
+
+  // Симулируем бой по тикам
+  simulateFight(pCard, eCard, log);
+}
+
+function simulateFight(p, e, log) {
+  let pDef = p.def, eDef = e.def;
+  let pMaxDef = p.def, eMaxDef = e.def;
+  let tick = 0;
+  let pFirstHit = true, eFirstHit = true;
+  let pFirstTick = true, eFirstTick = true;
+
+  function doTick() {
+    tick++;
+    if (pDef <= 0 || eDef <= 0) {
+      finishRound(pDef, eDef, p, e, log);
+      return;
+    }
+
+    log.innerHTML += `<b>Тик ${tick}:</b> `;
+
+    // Определяем урон
+    let dmgToEnemy = p.atk;
+    let dmgToPlayer = e.atk;
+
+    // === ПАССИВКА: БЛОК ===
+    if (e.ability === "блок" && eFirstHit) {
+      dmgToEnemy = 0;
+      eFirstHit = false;
+      log.innerHTML += `<span class="log-ability">🛡 ${e.name} блокирует!</span> `;
+    }
+    if (p.ability === "блок" && pFirstHit) {
+      dmgToPlayer = 0;
+      pFirstHit = false;
+      log.innerHTML += `<span class="log-ability">🛡 ${p.name} блокирует!</span> `;
+    }
+
+    // === ПАССИВКА: ЗАМОРОЗКА ===
+    if (p.ability === "заморозка" && pFirstTick) {
+      dmgToPlayer = 0;
+      pFirstTick = false;
+      log.innerHTML += `<span class="log-ability">❄️ ${e.name} заморожен!</span> `;
+    }
+    if (e.ability === "заморозка" && eFirstTick) {
+      dmgToEnemy = 0;
+      eFirstTick = false;
+      log.innerHTML += `<span class="log-ability">❄️ ${p.name} заморожен!</span> `;
+    }
+
+    // === ПАССИВКА: РЫВОК ===
+    if (p.ability === "рывок" && tick === 1) {
+      eDef -= dmgToEnemy;
+      log.innerHTML += `<span class="log-damage">${p.name} бьёт первым на ${dmgToEnemy}!</span> `;
+      if (eDef <= 0) {
+        log.innerHTML += `<span class="log-ability">💀 ${e.name} не успел ответить!</span><br>`;
+        if (e.ability === "взрыв") {
+          pDef -= 4;
+          log.innerHTML += `<span class="log-ability">💥 ${e.name} ВЗРЫВАЕТСЯ! -4 ${p.name}!</span><br>`;
+        }
+        updateHP(pDef, pMaxDef, eDef, eMaxDef);
+        setTimeout(() => finishRound(pDef, eDef, p, e, log), 800);
+        return;
+      }
+      dmgToPlayer = e.atk;
+      if (p.ability === "блок" && pFirstHit) { dmgToPlayer = 0; pFirstHit = false; }
+      pDef -= dmgToPlayer;
+      log.innerHTML += `<span class="log-damage">${e.name} отвечает на ${dmgToPlayer}</span><br>`;
+      updateHP(pDef, pMaxDef, eDef, eMaxDef);
+      setTimeout(doTick, 800);
+      return;
+    }
+
+    if (e.ability === "рывок" && tick === 1) {
+      pDef -= dmgToPlayer;
+      log.innerHTML += `<span class="log-damage">${e.name} бьёт первым на ${dmgToPlayer}!</span> `;
+      if (pDef <= 0) {
+        log.innerHTML += `<span class="log-ability">💀 ${p.name} не успел ответить!</span><br>`;
+        if (p.ability === "взрыв") {
+          eDef -= 4;
+          log.innerHTML += `<span class="log-ability">💥 ${p.name} ВЗРЫВАЕТСЯ! -4 ${e.name}!</span><br>`;
+        }
+        updateHP(pDef, pMaxDef, eDef, eMaxDef);
+        setTimeout(() => finishRound(pDef, eDef, p, e, log), 800);
+        return;
+      }
+      dmgToEnemy = p.atk;
+      if (e.ability === "блок" && eFirstHit) { dmgToEnemy = 0; eFirstHit = false; }
+      eDef -= dmgToEnemy;
+      log.innerHTML += `<span class="log-damage">${p.name} отвечает на ${dmgToEnemy}</span><br>`;
+      updateHP(pDef, pMaxDef, eDef, eMaxDef);
+      setTimeout(doTick, 800);
+      return;
+    }
+
+    // Обычные одновременные удары
+    pDef -= dmgToPlayer;
+    eDef -= dmgToEnemy;
+
+    log.innerHTML += `<span class="log-damage">${p.name} → ${dmgToEnemy}</
